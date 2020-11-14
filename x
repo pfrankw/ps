@@ -3,8 +3,6 @@ function Get-FileFromURL {
     param(
         [Parameter(Mandatory, Position = 0)]
         [System.Uri]$URL,
-        [Parameter(Mandatory, Position = 1)]
-        [string]$Filename
     )
 
     process {
@@ -20,7 +18,7 @@ function Get-FileFromURL {
                 # See https://www.microsoft.com/en-us/research/wp-content/uploads/2004/12/tr-2004-136.pdf
                 # Cf. https://stackoverflow.com/a/3034155/10504393
                 $buffer = New-Object -TypeName byte[] -ArgumentList 256KB
-                $target_stream = [System.IO.File]::Create($Filename)
+                $bufferfinal = New-Object -TypeName byte[]
 
                 $timer = New-Object -TypeName timers.timer
                 $timer.Interval = 1000 # Update progress every second
@@ -31,7 +29,7 @@ function Get-FileFromURL {
 
                 do {
                     $count = $response_stream.Read($buffer, 0, $buffer.length)
-                    $target_stream.Write($buffer, 0, $count)
+                    $buffer_final.Append($buffer)
                     $downloaded_bytes = $downloaded_bytes + $count
 
                     if ($Global:update_progress) {
@@ -57,9 +55,9 @@ function Get-FileFromURL {
             finally {
                 if ($timer) { $timer.Stop() }
                 if ($timer_event) { Unregister-Event -SubscriptionId $timer_event.Id }
-                if ($target_stream) { $target_stream.Dispose() }
                 # If file exists and $count is not zero or $null, than script was interrupted by user
                 if ((Test-Path $Filename) -and $count) { Remove-Item -Path $Filename }
+                Return $buffer_final
             }
         }
         finally {
