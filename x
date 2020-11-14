@@ -12,7 +12,8 @@ function Get-FileFromURL {
             $response = $request.GetResponse()
             $total_bytes = $response.ContentLength
             $response_stream = $response.GetResponseStream()
-            $bufferfinal = New-Object -TypeName byte[]
+            $bufferfinal = $MyBuffer = [System.Byte[]]::new(10000000)
+            
             try {
                 # 256KB works better on my machine for 1GB and 10GB files
                 # See https://www.microsoft.com/en-us/research/wp-content/uploads/2004/12/tr-2004-136.pdf
