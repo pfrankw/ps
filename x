@@ -58,12 +58,14 @@ function Get-FileFromURL {
                 if ($timer_event) { Unregister-Event -SubscriptionId $timer_event.Id }
                 # If file exists and $count is not zero or $null, than script was interrupted by user
                 if ((Test-Path $Filename) -and $count) { Remove-Item -Path $Filename }
-                Return $buffer_final
+                
             }
+            
         }
         finally {
             if ($response) { $response.Dispose() }
             if ($response_stream) { $response_stream.Dispose() }
         }
+        Return $bufferfinal
     }
 }
