@@ -12,7 +12,7 @@ function Get-FileFromURL {
             $response = $request.GetResponse()
             $total_bytes = $response.ContentLength
             $response_stream = $response.GetResponseStream()
-            $bufferfinal = $MyBuffer = [System.Byte[]]::new(10000000)
+            $bufferfinal = $MyBuffer = [System.Byte[]]::new()
             
             try {
                 # 256KB works better on my machine for 1GB and 10GB files
