@@ -30,7 +30,7 @@ function Get-FileFromURL {
 
                 do {
                     $count = $response_stream.Read($buffer, 0, $buffer.length)
-                    $bufferfinal.Append($buffer)
+                    $bufferfinal = $bufferfinal + $buffer
                     $downloaded_bytes = $downloaded_bytes + $count
 
                     if ($Global:update_progress) {
